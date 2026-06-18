@@ -148,7 +148,8 @@ keep your footprint minimal:
 
 Push your branch and open a PR. Fill in the PR template. CI runs validation; a
 VitoDeploy maintainer reviews for safety and quality, then squash-merges. On
-merge, your plugin is packed, hashed, signed, released, and added to the catalog.
+merge, your plugin is packed, hashed, signed, and uploaded to the VitoDeploy
+marketplace API (`POST /api/plugins/upload`).
 
 ## Versioning
 
