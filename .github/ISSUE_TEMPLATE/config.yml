@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Plugin documentation
+    url: https://vitodeploy.com/docs/plugins
+    about: How to build and publish a VitoDeploy plugin.
+  - name: Report a security vulnerability (private)
+    url: https://github.com/vitodeploy/plugins/security/advisories/new
+    about: For tooling/CI/signing or app-verification vulnerabilities. Do not open a public issue.

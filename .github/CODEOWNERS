@@ -1,0 +1,10 @@
+# Default owners for everything in the repo.
+*                       @vitodeploy/maintainers
+
+# Tooling, schema, and CI are the root of trust for the marketplace — require
+# maintainer review on every change.
+/scripts/               @vitodeploy/maintainers
+/schema/                @vitodeploy/maintainers
+/.github/               @vitodeploy/maintainers
+/minisign.pub           @vitodeploy/maintainers
+/DESIGN.md              @vitodeploy/maintainers

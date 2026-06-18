@@ -1,0 +1,153 @@
+name: Publish
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "plugins/**"
+  workflow_dispatch:
+    inputs:
+      plugins:
+        description: "Space-separated plugin slugs to (re)publish. Empty = none."
+        required: false
+        default: ""
+
+# Need contents: write to create GitHub Releases and commit the regenerated
+# catalog back to main.
+permissions:
+  contents: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Pack, sign, release, and update catalog
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install tooling
+        run: npm ci
+
+      - name: Check publishing is configured
+        id: configured
+        env:
+          HAS_SIGNING_KEY: ${{ secrets.MINISIGN_SECRET_KEY != '' }}
+        run: |
+          if [ ! -f minisign.pub ] || grep -q "PLACEHOLDER" minisign.pub || grep -q "REPLACE ME" minisign.pub; then
+            echo "::notice::minisign.pub is missing or still the placeholder; skipping publish. Commit the real public key to enable."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif [ "$HAS_SIGNING_KEY" != "true" ]; then
+            echo "::notice::MINISIGN_SECRET_KEY secret is not set; skipping publish."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Determine changed plugins
+        id: changed
+        if: steps.configured.outputs.ready == 'true'
+        env:
+          DISPATCH_INPUT: ${{ github.event.inputs.plugins }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$DISPATCH_INPUT" ]; then
+            raw="$DISPATCH_INPUT"
+          else
+            before="$BEFORE_SHA"
+            if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ]; then
+              before="HEAD~1"
+            fi
+            if ! git cat-file -e "$before^{commit}" 2>/dev/null; then
+              echo "::warning::before ref '$before' unavailable; falling back to HEAD~1"
+              before="HEAD~1"
+            fi
+            raw="$(git diff --name-only "$before" "$AFTER_SHA" -- plugins/ \
+              | awk -F/ 'NF>1 && $1=="plugins" {print $2}' \
+              | sort -u)"
+          fi
+
+          names=""
+          for slug in $raw; do
+            if ! printf '%s' "$slug" | grep -Eq '^[a-z0-9][a-z0-9-]*$'; then
+              echo "::warning::skipping slug with invalid characters: '$slug'"
+              continue
+            fi
+            if [ ! -f "plugins/$slug/composer.json" ]; then
+              echo "skip $slug (removed)"
+              continue
+            fi
+            names="$names $slug"
+          done
+          names="$(printf '%s' "$names" | sed 's/^ *//')"
+          echo "names=$names" >> "$GITHUB_OUTPUT"
+          echo "Publishing: ${names:-<none>}"
+
+      - name: Validate changed plugins
+        if: steps.changed.outputs.names != ''
+        env:
+          NAMES: ${{ steps.changed.outputs.names }}
+        run: node scripts/validate.mjs $NAMES
+
+      - name: Install minisign
+        if: steps.changed.outputs.names != ''
+        run: sudo apt-get update && sudo apt-get install -y minisign
+
+      - name: Pack, sign, and publish releases
+        if: steps.changed.outputs.names != ''
+        env:
+          NAMES: ${{ steps.changed.outputs.names }}
+          MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+          VITO_PLUGINS_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/publish.mjs $NAMES
+
+      - name: Regenerate catalog
+        if: steps.changed.outputs.names != ''
+        env:
+          VITO_PLUGINS_REPO: ${{ github.repository }}
+          CATALOG_GENERATED_AT: ${{ github.event.head_commit.timestamp }}
+        run: node scripts/catalog.mjs
+
+      - name: Commit catalog if changed
+        if: steps.changed.outputs.names != ''
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- catalog/index.json; then
+            echo "Catalog unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add catalog/index.json
+          git commit -m "chore(catalog): update index.json [skip ci]"
+          git push origin HEAD:main
+
+      - name: Publish catalog as a stable release asset
+        if: steps.changed.outputs.names != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # A single moving "catalog" release gives the app a stable URL:
+          # https://github.com/<repo>/releases/download/catalog/index.json
+          if gh release view catalog >/dev/null 2>&1; then
+            gh release upload catalog catalog/index.json --clobber
+          else
+            gh release create catalog catalog/index.json \
+              --title "Plugin catalog" \
+              --notes "Auto-generated marketplace catalog. Always the latest index.json."
+          fi

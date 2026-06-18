@@ -1,0 +1,43 @@
+name: Bug in the tooling or a plugin
+description: Report a bug in the validate/pack/publish tooling, CI, or a specific plugin.
+title: "[bug] <summary>"
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where is the bug?
+      options:
+        - Tooling (validate / pack / catalog / publish)
+        - CI workflow
+        - A specific plugin
+        - Catalog / index.json
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: plugin
+    attributes:
+      label: Plugin slug (if applicable)
+      placeholder: laravel-reverb-plugin
+    validations:
+      required: false
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead?
+      description: Include command output / error messages where relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: false

@@ -1,0 +1,107 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/vitodeploy/plugins/main/schema/manifest.schema.json",
+  "title": "VitoDeploy plugin manifest (composer.json)",
+  "description": "A VitoDeploy plugin manifest is a real composer.json carrying marketplace metadata under extra.vito.",
+  "type": "object",
+  "required": ["name", "description", "version", "autoload", "extra"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "name": {
+      "type": "string",
+      "description": "Composer package name, 'vendor/package'. The package part must equal the plugin directory name.",
+      "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?/[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version. Published versions are immutable; bump for every change.",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+([-+].+)?$"
+    },
+    "license": { "type": "string" },
+    "type": {
+      "type": "string",
+      "const": "vito-plugin"
+    },
+    "require": {
+      "type": "object",
+      "description": "Composer requirements. Vito plugins run inside the host app; declaring extra runtime deps is discouraged and flagged for review."
+    },
+    "autoload": {
+      "type": "object",
+      "required": ["psr-4"],
+      "properties": {
+        "psr-4": {
+          "type": "object",
+          "description": "Must map the plugin's namespace prefix to \"\" (the plugin root) so Plugin.php resolves under Vito's loader.",
+          "minProperties": 1,
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "extra": {
+      "type": "object",
+      "required": ["vito"],
+      "properties": {
+        "vito": { "$ref": "#/$defs/vito" }
+      }
+    }
+  },
+  "$defs": {
+    "vito": {
+      "type": "object",
+      "description": "Marketplace metadata. Vito's plugin loader ignores this; the catalog and marketplace UI read it.",
+      "required": ["name", "icon"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable display name shown in the marketplace.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "categories": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+          "maxItems": 8,
+          "uniqueItems": true
+        },
+        "homepage": { "type": "string", "format": "uri" },
+        "repository": { "type": "string", "format": "uri" },
+        "author": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string" },
+            "github": { "type": "string", "pattern": "^@?[A-Za-z0-9-]+$" },
+            "email": { "type": "string", "format": "email" }
+          }
+        },
+        "official": {
+          "type": "boolean",
+          "description": "True for plugins maintained by the VitoDeploy team."
+        },
+        "min_vito_version": {
+          "type": "string",
+          "description": "Minimum compatible Vito version (advisory).",
+          "pattern": "^[0-9]+\\.[0-9]+(\\.[0-9]+)?$"
+        },
+        "icon": {
+          "type": "string",
+          "description": "Listing icon, relative to the plugin directory. SVG, or square PNG >= 256x256.",
+          "pattern": "\\.(svg|png)$"
+        },
+        "screenshots": {
+          "type": "array",
+          "description": "Listing screenshots, relative to the plugin directory. PNG 1600x1000.",
+          "items": { "type": "string", "pattern": "\\.png$" },
+          "maxItems": 6
+        }
+      }
+    }
+  }
+}

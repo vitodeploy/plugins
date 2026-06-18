@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/vitodeploy/plugins/main/schema/manifest.schema.json",
+  "name": "vitodeploy/laravel-reverb-plugin",
+  "description": "Laravel Reverb plugin for VitoDeploy",
+  "version": "2.0.0",
+  "license": "AGPL-3.0-only",
+  "type": "vito-plugin",
+  "autoload": {
+    "psr-4": {
+      "App\\Vito\\Plugins\\Vitodeploy\\LaravelReverbPlugin\\": ""
+    }
+  },
+  "extra": {
+    "vito": {
+      "name": "Laravel Reverb",
+      "categories": ["laravel", "websockets"],
+      "homepage": "https://vitodeploy.com/docs/plugins/laravel-reverb",
+      "repository": "https://github.com/vitodeploy/plugins",
+      "author": { "name": "VitoDeploy", "github": "vitodeploy" },
+      "official": true,
+      "min_vito_version": "3.0.0",
+      "icon": "assets/icon.svg"
+    }
+  }
+}

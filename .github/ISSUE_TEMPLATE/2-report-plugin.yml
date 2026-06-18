@@ -1,0 +1,43 @@
+name: Report a malicious or abusive plugin
+description: Report a listed plugin that behaves maliciously or violates policy.
+title: "[report] <plugin slug>"
+labels: ["plugin-report", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this to report a **listed** plugin (data exfiltration, unexpected
+        shell/network use, policy violation, etc.). Maintainers triage these
+        with priority and can unlist a plugin by removing its directory.
+
+        For a vulnerability in the **tooling/CI/signing** or how the app verifies
+        plugins, use private reporting instead:
+        https://github.com/vitodeploy/plugins/security/advisories/new
+  - type: input
+    id: slug
+    attributes:
+      label: Plugin slug
+      description: The directory name under plugins/ (e.g. some-vendor-plugin).
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Affected version(s)
+      placeholder: "1.2.0, or 'all'"
+    validations:
+      required: false
+  - type: textarea
+    id: concern
+    attributes:
+      label: What is the concern?
+      description: Describe the malicious/abusive behavior or policy violation.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: File paths, code snippets, observed network/shell activity, logs, screenshots.
+    validations:
+      required: true

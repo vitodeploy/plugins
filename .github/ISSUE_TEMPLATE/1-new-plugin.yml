@@ -1,0 +1,32 @@
+name: Propose a new plugin
+description: Suggest a plugin you'd like to add (or see added) to the marketplace.
+title: "[plugin] <name>"
+labels: ["new-plugin"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Want to publish it yourself? You don't need an issue — fork the repo,
+        copy `examples/hello-world`, and open a PR (see CONTRIBUTING.md).
+        Use this form to propose an idea or coordinate before building.
+  - type: input
+    id: name
+    attributes:
+      label: Plugin name
+      placeholder: Laravel Horizon
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What would it do?
+      description: What does it add to VitoDeploy (site type, server feature, provider, …)?
+    validations:
+      required: true
+  - type: input
+    id: author
+    attributes:
+      label: Will you build it?
+      placeholder: "Yes (@your-handle) / Looking for a contributor"
+    validations:
+      required: false
