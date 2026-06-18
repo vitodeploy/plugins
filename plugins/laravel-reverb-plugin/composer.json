@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/vitodeploy/plugins/main/schema/manifest.schema.json",
   "name": "vitodeploy/laravel-reverb-plugin",
   "description": "Laravel Reverb plugin for VitoDeploy",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "license": "AGPL-3.0-only",
   "type": "vito-plugin",
   "autoload": {
