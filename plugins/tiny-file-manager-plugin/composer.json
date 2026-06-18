@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/vitodeploy/plugins/main/schema/manifest.schema.json",
   "name": "vitodeploy/tiny-file-manager-plugin",
   "description": "Tiny File Manager plugin for VitoDeploy [NOT recommended for PRODUCTION]",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "license": "AGPL-3.0-only",
   "type": "vito-plugin",
   "autoload": {
