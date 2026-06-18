@@ -8,10 +8,9 @@ body:
     attributes:
       label: Where is the bug?
       options:
-        - Tooling (validate / pack / catalog / publish)
+        - Tooling (validate / pack / publish)
         - CI workflow
         - A specific plugin
-        - Catalog / index.json
         - Other
     validations:
       required: true

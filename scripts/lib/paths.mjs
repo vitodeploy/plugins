@@ -4,7 +4,6 @@ import fs from "node:fs";
 
 export const repoRoot = path.resolve(fileURLToPath(new URL("../..", import.meta.url)));
 export const pluginsDir = path.join(repoRoot, "plugins");
-export const catalogDir = path.join(repoRoot, "catalog");
 export const schemaPath = path.join(repoRoot, "schema", "manifest.schema.json");
 
 // A plugin's manifest IS a real composer.json; marketplace metadata lives under

@@ -102,7 +102,14 @@ jobs:
 
       - name: Install minisign
         if: steps.changed.outputs.names != ''
-        run: sudo apt-get update && sudo apt-get install -y minisign
+        env:
+          MINISIGN_VERSION: "0.12"
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/jedisct1/minisign/releases/download/${MINISIGN_VERSION}/minisign-${MINISIGN_VERSION}-linux.tar.gz" -o /tmp/minisign.tar.gz
+          tar -xzf /tmp/minisign.tar.gz -C /tmp
+          sudo install -m 0755 "/tmp/minisign-linux/$(uname -m)/minisign" /usr/local/bin/minisign
+          minisign -v
 
       - name: Pack, sign, and upload
         if: steps.changed.outputs.names != ''

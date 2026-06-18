@@ -54,7 +54,7 @@
   "$defs": {
     "vito": {
       "type": "object",
-      "description": "Marketplace metadata. Vito's plugin loader ignores this; the catalog and marketplace UI read it.",
+      "description": "Marketplace metadata. Vito's plugin loader ignores this; the marketplace listing reads it.",
       "required": ["name", "icon"],
       "additionalProperties": false,
       "properties": {

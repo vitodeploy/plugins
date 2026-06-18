@@ -10,7 +10,6 @@
   "scripts": {
     "validate": "node scripts/validate.mjs",
     "pack": "node scripts/pack.mjs",
-    "catalog": "node scripts/catalog.mjs",
     "publish": "node scripts/publish.mjs"
   },
   "dependencies": {

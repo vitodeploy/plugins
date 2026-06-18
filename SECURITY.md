@@ -16,7 +16,7 @@ If a **listed plugin** behaves maliciously (data exfiltration, unexpected shell
 or network use, etc.) or violates policy, file a
 [report](.github/ISSUE_TEMPLATE/2-report-plugin.yml). Maintainers triage these
 with priority and can unlist the plugin by removing its directory, which drops
-it from the next published catalog.
+it from the VitoDeploy marketplace on the next publish.
 
 ## How integrity is guaranteed
 
@@ -51,8 +51,8 @@ covered by a signature from a key that never leaves CI, a compromised host or
 transport cannot substitute bytes, misrepresent the listing, or roll a user back
 to an older signed version.
 
-> **v1 is discovery/display.** The catalog is published for browsing today;
-> **enforced signed-install in the app is a fast-follow.** The trust anchor
+> **v1 is discovery/display.** Plugins are published to the marketplace for
+> browsing today; **enforced signed-install in the app is a fast-follow.** The trust anchor
 > (`minisign.pub`) ships ahead of the installer work so the pinned key is already
 > in users' hands when the verify path lands.
 

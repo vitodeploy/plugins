@@ -12,9 +12,9 @@
   **fork → add a plugin → open a PR** to get it listed.
 - Every merged plugin is **validated, zipped, hashed, and signed** as a
   tamper-evident artifact.
-- The repo publishes a **catalog** (`index.json` + per-plugin metadata + signed
-  zips) via **GitHub Releases**. There is no separate backend server — *GitHub is
-  the marketplace API*.
+- On merge, CI **uploads** each changed plugin (signed zip + signed metadata +
+  listing assets) to the **VitoDeploy marketplace API** at vitodeploy.com. The
+  backend stores the artifacts and serves the marketplace listing.
 - The Vito app shows a **catalog** of plugins (name, description, icon,
   categories) with **a link to each plugin's home page** — a discovery surface,
   exactly like muxy's marketplace listing.
@@ -37,16 +37,18 @@ Vito **already** has a plugin system and a rudimentary "marketplace":
 
 This design **adds the registry/marketplace layer** on top: a single curated
 monorepo with composer.json manifests, deterministic signed artifacts, and a
-published catalog. The 3 official plugins move *into* this repo.
+backend that ingests them and serves the marketplace. The 3 official plugins
+move *into* this repo.
 
 ### What is in v1 vs deferred
 
 - **v1 (this work):** the monorepo + manifest schema + validate/pack/sign/publish
-  scripts + CI + the 3 migrated plugins + a published catalog, **and** wiring
-  Vito's marketplace UI to read that catalog (display + homepage link).
+  scripts + CI + the 3 migrated plugins + uploading signed artifacts to the
+  vitodeploy.com marketplace API, **and** wiring Vito's marketplace UI to read
+  that listing (display + homepage link).
 - **Deferred (not v1):** rewiring Vito's *installer* to consume signed monorepo
   artifacts and derive the namespace from `composer.json`. Vito's existing
-  GitHub-URL/release install flow stays as-is. The catalog is discovery only
+  GitHub-URL/release install flow stays as-is. The marketplace is discovery only
   for now; "Install" continues to use the existing path (or links out).
 
 ## 3. End-to-end flow
@@ -75,20 +77,19 @@ Author forks repo
    └─ for EACH changed plugin, independently:
        ├─ pack deterministically (fixed order, epoch mtimes → stable sha256)
        ├─ sha256(zip)
-       ├─ sign the zip AND a metadata doc (name,version,sha256,perms,asset hashes)
+       ├─ sign the zip AND a metadata doc (name,version,sha256,asset hashes)
        │  with the Vito release key (minisign -W) → two .minisig
-       ├─ upload zip + sigs + assets as a GitHub Release asset set
-       │  (tag: <name>-v<version>)
-       └─ regenerate and commit/publish catalog/index.json
+       └─ POST zip + sigs + metadata + assets to the marketplace API
+          (vitodeploy.com/api/plugins/upload), one multipart request
         │
         ▼
-   GitHub (Releases + raw index.json)      ← the marketplace "API"
-   ├─ serves catalog/index.json (the list) + per-plugin metadata
-   └─ serves the signed zip + signatures as Release assets (CDN-backed)
+   VitoDeploy backend (vitodeploy.com)      ← the marketplace API
+   ├─ verifies the request against the metadata + headers, stores the artifact
+   └─ serves the marketplace listing + signed zip/signatures to the app
         │
         ▼
    Vito App
-   ├─ Marketplace UI fetches catalog/index.json → browse/search
+   ├─ Marketplace UI fetches the listing → browse/search
    ├─ shows name, description, icon, categories, "Home page" link
    └─ (deferred) install: download signed zip → verify minisign → extract
 ```
@@ -127,16 +128,12 @@ vito-plugins/                       # github.com/vitodeploy/plugins
 │   │   └── images.mjs              # icon/screenshot dimension + size checks (no deps)
 │   ├── validate.mjs                # validate one/all plugins (CI + local)
 │   ├── pack.mjs                    # deterministic zip + sha256 for one plugin
-│   ├── publish.mjs                 # pack+sign+upload changed plugins, build index.json
-│   └── catalog.mjs                 # (re)generate catalog/index.json from plugins/
-│
-├── catalog/
-│   └── index.json                  # published catalog the app reads (generated)
+│   └── publish.mjs                 # pack + sign + upload changed plugins to the API
 │
 ├── .github/
 │   ├── workflows/
 │   │   ├── validate.yml            # on PR: validate + dry-run pack + meta gate
-│   │   └── publish.yml             # on push to main: pack + sign + release + index
+│   │   └── publish.yml             # on push to main: pack + sign + upload
 │   ├── ISSUE_TEMPLATE/
 │   │   ├── 1-new-plugin.yml
 │   │   ├── 2-report-plugin.yml     # security/abuse report
@@ -197,60 +194,53 @@ muxy's "package.json + `muxy` key" pattern.
   the plugin root, so the PSR-4 prefix maps to `""` (the plugin dir).
 - **`extra.vito`** carries everything the marketplace listing needs; Vito's
   plugin *loader* ignores it (it only cares about `Plugin.php`).
-- **`min_vito_version`** lets the catalog/app hide plugins incompatible with the
-  running Vito version (advisory in v1).
+- **`min_vito_version`** lets the marketplace/app hide plugins incompatible with
+  the running Vito version (advisory in v1).
 
 The published schema (`schema/manifest.schema.json`) is the single source for CI
 and editor autocomplete.
 
-## 6. The catalog (`catalog/index.json`) — the marketplace "API"
+## 6. The upload contract — the marketplace API
 
-There is **no backend**. The repo publishes a catalog that the app fetches over
-HTTPS from GitHub (raw file on `main`, and/or a `catalog` GitHub Release for a
-stable URL). Shape:
+There is **no committed catalog**. CI is the single trusted publisher: on every
+push to `main`, `scripts/publish.mjs` packs each changed plugin and POSTs it to
+the marketplace API at `vitodeploy.com/api/plugins/upload` as one
+`multipart/form-data` request. The backend stores the artifact and owns the
+marketplace listing the app renders.
 
-```jsonc
-{
-  "generated_at": "2026-06-18T00:00:00Z",
-  "schema_version": 1,
-  "plugins": [
-    {
-      "name": "vitodeploy/laravel-reverb",
-      "slug": "laravel-reverb",
-      "display_name": "Laravel Reverb",
-      "description": "Laravel Reverb plugin for VitoDeploy",
-      "version": "2.0.0",
-      "official": true,
-      "categories": ["laravel", "websockets"],
-      "homepage": "https://vitodeploy.com/docs/plugins/laravel-reverb",
-      "repository": "https://github.com/vitodeploy/plugins",
-      "author": { "name": "VitoDeploy", "github": "vitodeploy" },
-      "min_vito_version": "3.0.0",
-      "icon_url": "https://github.com/vitodeploy/plugins/releases/download/laravel-reverb-v2.0.0/icon.svg",
-      "screenshots": ["https://.../screenshot-1.png"],
-      "namespace": "App\\Vito\\Plugins\\Vitodeploy\\LaravelReverb\\Plugin",
-      "artifact": {
-        "url": "https://github.com/vitodeploy/plugins/releases/download/laravel-reverb-v2.0.0/laravel-reverb-2.0.0.zip",
-        "sha256": "…",
-        "size": 12345,
-        "signature_url": "https://.../laravel-reverb-2.0.0.zip.minisig",
-        "metadata_url": "https://.../metadata.json",
-        "metadata_signature_url": "https://.../metadata.json.minisig"
-      }
-    }
-  ]
-}
+The wire format mirrors what the API's `UploadPluginRequest` validates:
+
+```
+POST https://vitodeploy.com/api/plugins/upload
+Authorization: Bearer <VITO_UPLOAD_TOKEN>
+X-Plugin-Name / X-Plugin-Version / X-Plugin-Sha256   ← cross-checked against metadata + bytes
+
+multipart/form-data:
+  artifact          the packed zip (file)
+  signature         minisign signature over the zip (string)
+  metadata          the signed metadata document (file, application/json)
+  metadataSignature minisign signature over metadata.json (string)
+  icon              listing icon (file, hash declared in metadata)
+  screenshot-N      listing screenshots (files, hashes declared in metadata)
 ```
 
-The app's marketplace UI reads `plugins[]` to render the catalog and the home
-page link. The `artifact` block is what a future signed-install path consumes.
+The signed `metadata.json` is the authoritative facts the API consents to —
+`name`, `slug`, `version`, zip `sha256`/`size`, `description`, `namespace`,
+`categories`, `min_vito_version`, and a `field`+`filename`+`sha256` entry for
+the icon and each screenshot. The API cross-checks the `X-Plugin-*` headers and
+the received bytes against this signed document, so every trusted fact is
+signature-covered (see §7).
+
+Auth is a static bearer token (the single trusted publisher): the API compares
+`Authorization: Bearer <token>` against its `PLUGINS_UPLOAD_TOKEN`. The token is
+a GitHub Actions secret (`VITO_UPLOAD_TOKEN`) scoped to the publish workflow.
 
 ## 7. Integrity model (signed metadata + signed zip)
 
 Identical to muxy: two minisign (Ed25519) signatures per publish — one over the
-zip, one over a metadata document binding `name`, `version`, zip sha256,
-declared permissions/capabilities, and each asset's sha256. The matching public
-key is committed as `minisign.pub` and **pinned in the Vito app**.
+zip, one over a metadata document binding `name`, `version`, zip sha256, and
+each asset's sha256. The matching public key is committed as `minisign.pub` and
+**pinned in the Vito app**.
 
 When the signed-install path lands (deferred), Vito enforces, in order:
 pinned key → verify signed metadata → verify zip sig + sha256 matches metadata →
@@ -275,12 +265,11 @@ no fork access. See SECURITY.md.
 1. Skip unless `minisign.pub` is real and `MINISIGN_SECRET_KEY` is set.
 2. Diff the merge → changed plugin dirs (or `workflow_dispatch` explicit list).
 3. For each: validate → `scripts/pack.mjs` → `minisign -S -W` (zip + metadata) →
-   create/update a GitHub Release `<name>-v<version>` with zip + sigs + assets →
-   `scripts/catalog.mjs` regenerates `catalog/index.json` → commit it back to
-   `main` (and/or attach to a `catalog` release for a stable URL).
+   `scripts/publish.mjs` POSTs the signed zip + signatures + metadata + assets to
+   `vitodeploy.com/api/plugins/upload`.
 
 Determinism: re-running publish on an unchanged plugin yields the identical zip
-and hash, so redundant publishes dedupe by `name@version + sha256`.
+and hash, so redundant uploads dedupe by `name@version + sha256` on the backend.
 
 ## 9. Packaging rules (PHP-specific divergence from muxy)
 
@@ -307,10 +296,10 @@ path escapes, invalid `composer.json`.
 ## 11. Vito app-side changes (v1)
 
 In `~/Projects/vito`:
-- A **catalog client** that fetches `vitodeploy/plugins` `catalog/index.json`
+- A **marketplace listing** rendered from the plugins uploaded to the backend
   (replacing or augmenting the GitHub-search queries in `official.tsx` /
   `community.tsx`).
-- Render the catalog: name, description, icon, categories, a **"Home page"**
+- Render the listing: name, description, icon, categories, a **"Home page"**
   link (`extra.vito.homepage`), and a star/repository link.
 - Keep the existing GitHub-URL install dialog working unchanged.
 - Commit the pinned `minisign.pub` into the app for the future verify path
@@ -323,20 +312,18 @@ Resolved:
   root `plugins/`. ✓
 - **Manifest = `composer.json` with `extra.vito`**, PSR-4 namespace
   authoritative. ✓
-- **Hosting = GitHub** (Releases for signed zips/assets, `catalog/index.json`
-  for the listing). No separate vitodeploy.com backend. ✓
+- **Publishing = upload to the vitodeploy.com marketplace API** (signed zip +
+  signed metadata + assets); the backend owns the listing. ✓
 - **Signing = minisign/Ed25519**, pinned `minisign.pub`, two sigs (zip +
   metadata), key only in CI. ✓
 - **Publish granularity = incremental** (only changed plugins). ✓
-- **v1 app-side = catalog display + homepage link**; installer rewiring
+- **v1 app-side = marketplace display + homepage link**; installer rewiring
   deferred. ✓
 
 Open (non-blocking; sensible defaults applied):
-1. **Stable catalog URL** — raw `main` file vs a dedicated `catalog` Release
-   asset. Default: publish both; app prefers the Release asset, falls back to
-   raw. (Release asset survives history rewrites and is CDN-backed.)
-2. **Per-plugin `min_vito_version` enforcement** — advisory in v1 (catalog
+1. **Per-plugin `min_vito_version` enforcement** — advisory in v1 (metadata
    carries it; app may grey-out incompatible plugins later).
-3. **Community tier** — keep GitHub-topic search for non-monorepo community
-   plugins alongside the curated catalog, or require all via PR. Default: keep
-   topic-search community tab for now; official tab reads the curated catalog.
+2. **Community tier** — keep GitHub-topic search for non-monorepo community
+   plugins alongside the curated marketplace, or require all via PR. Default:
+   keep topic-search community tab for now; official tab reads the marketplace.
+```
