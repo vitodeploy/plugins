@@ -261,6 +261,19 @@ no fork access. See SECURITY.md.
    `composer.json` via `jq`, never executes PR code): enforce one-plugin-per-PR,
    semver forward-bump, force PR title to `<name> <version>`, ping plugin author.
 
+### `test.yml` (on PR) — run plugin tests inside the host app
+Plugin PHP compiles against host classes (`App\SiteFeatures\Action`,
+`App\Models\Worker`, `App\Plugins\Register*`, the `SSH` facade) and the host's
+`Tests\TestCase` (which auto-provisions a server/site), so tests can't run
+standalone in this repo. Instead `scripts/test.mjs` checks out `vitodeploy/vito`,
+stages each changed plugin into `app/Vito/Plugins/<Vendor>/<Name>/` and its
+`tests/` into `tests/Feature/Plugins/<Vendor>/<Name>/`, runs the host's PHPUnit
+scoped to that dir, and cleans up. Tests are **opt-in per plugin** (a plugin with
+no `tests/` is skipped, not failed) but **required when present** — a failure
+blocks merge. The job runs read-only (it executes PR code; no secrets, like
+`validate`). `tests/` is already excluded from the published artifact, so test
+files never ship. The host ref is pinned to `4.x`.
+
 ### `publish.yml` (on push to main) — incremental, `O(changed)`
 1. Skip unless `minisign.pub` is real and `MINISIGN_SECRET_KEY` is set.
 2. Diff the merge → changed plugin dirs (or `workflow_dispatch` explicit list).
@@ -319,6 +332,9 @@ Resolved:
 - **Publish granularity = incremental** (only changed plugins). ✓
 - **v1 app-side = marketplace display + homepage link**; installer rewiring
   deferred. ✓
+- **Testing = run plugin tests inside a host `vitodeploy/vito` checkout**
+  (PHPUnit), staged by `scripts/test.mjs`; opt-in per plugin, required when
+  present, host ref pinned to `4.x`. ✓
 
 Open (non-blocking; sensible defaults applied):
 1. **Per-plugin `min_vito_version` enforcement** — advisory in v1 (metadata

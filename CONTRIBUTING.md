@@ -144,7 +144,42 @@ keep your footprint minimal:
 - Declaring extra Composer `require` deps — plugins run inside the host app and
   use host classes; extra deps are flagged for host-compatibility review.
 
-## 6. Open a pull request
+## 6. Test your plugin (optional but encouraged)
+
+Your plugin's PHP compiles against classes that only exist in the **host
+VitoDeploy app** (`App\Plugins\*`, `App\SiteFeatures\Action`, `App\Models\*`,
+the `SSH` facade). So plugin tests can't run standalone here — they run **inside
+a checkout of the host app**, where `Tests\TestCase` auto-provisions a
+`$this->server` and `$this->site` for you and `SSH::fake()` intercepts remote
+commands.
+
+Add tests under `plugins/<my-plugin>/tests/` (mirroring the host's
+`tests/Feature` layout). Each test class:
+
+- is namespaced `Tests\Feature\Plugins\<Vendor>\<Name>\…`,
+- extends `Tests\TestCase`,
+- uses `Illuminate\Foundation\Testing\RefreshDatabase` if it touches the DB.
+
+The runner stages your plugin into the host at
+`app/Vito/Plugins/<Vendor>/<Name>/`, copies your `tests/` into the host's
+`tests/Feature/Plugins/<Vendor>/<Name>/`, runs the host's PHPUnit, then cleans
+up. (`tests/` is never shipped in the published artifact.)
+
+```bash
+# point at a local checkout of vitodeploy/vito with `composer install` run
+VITO_PATH=/path/to/vito node scripts/test.mjs my-plugin   # one plugin
+VITO_PATH=/path/to/vito node scripts/test.mjs             # all plugins
+```
+
+See the official plugins' `tests/` for patterns: asserting `boot()` registers a
+site feature/type in config, faking SSH, and exception assertions on an Action's
+validation.
+
+**CI runs your plugin's tests on every PR and a failure blocks merge.** A plugin
+with no `tests/` directory is reported as skipped (not a failure) — tests are
+opt-in per plugin, but when present they must pass.
+
+## 7. Open a pull request
 
 Push your branch and open a PR. Fill in the PR template. CI runs validation; a
 VitoDeploy maintainer reviews for safety and quality, then squash-merges. On
