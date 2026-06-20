@@ -1,0 +1,106 @@
+name: Test
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "plugins/**"
+      - "scripts/**"
+      - ".github/workflows/test.yml"
+
+# Read-only token: this job checks out and EXECUTES PR-supplied plugin code
+# inside the host app, so it must never have write access or secrets. (Mirrors
+# the validate job's trust model — see validate.yml.)
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Run plugin tests
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout marketplace
+        uses: actions/checkout@v4
+        with:
+          path: plugins-repo
+          fetch-depth: 0
+
+      # The host VitoDeploy app provides the classes plugins compile against
+      # (App\Plugins\*, App\SiteFeatures\Action, App\Models\*, the SSH facade)
+      # and the Tests\TestCase that auto-provisions a server/site. Plugin tests
+      # run INSIDE this checkout.
+      #
+      # Pinned to the host's current development line (4.x). Plugins declare
+      # min_vito_version 3.0.0, so the host API they bind to is stable across
+      # 3.x/4.x; tracking 4.x surfaces forward-compat breakage early. To also
+      # gate on an older line, add a matrix over `ref`.
+      - name: Checkout host VitoDeploy app
+        uses: actions/checkout@v4
+        with:
+          repository: vitodeploy/vito
+          ref: 4.x
+          path: vito
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          tools: composer
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Cache host Composer packages
+        id: composer-cache
+        uses: actions/cache@v4
+        with:
+          path: vito/vendor
+          key: vito-host-${{ hashFiles('vito/composer.lock') }}
+          restore-keys: |
+            vito-host-
+
+      - name: Install host dependencies
+        working-directory: vito
+        run: composer install --prefer-dist --no-progress
+
+      - name: Prepare host test environment
+        working-directory: vito
+        run: |
+          touch storage/database-test.sqlite
+          touch .env
+          php artisan key:generate
+
+      # Only test plugins changed in this PR (matches validate.yml granularity).
+      # If the diff is tooling-only (scripts/**), test every plugin so a runner
+      # change can't silently break the suite.
+      - name: Determine changed plugins
+        id: changed
+        working-directory: plugins-repo
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          changed_plugins="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- plugins/ \
+            | awk -F/ 'NF>1 && $1=="plugins" {print $2}' | sort -u)"
+          tooling="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- scripts/ | head -n1 || true)"
+
+          if [ -n "$tooling" ] || [ -z "$changed_plugins" ]; then
+            echo "Tooling changed or no specific plugin diff; testing all plugins."
+            echo "slugs=" >> "$GITHUB_OUTPUT"
+          else
+            echo "Changed plugins:"; printf '  - %s\n' $changed_plugins
+            echo "slugs=$(printf '%s ' $changed_plugins)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run plugin tests
+        working-directory: plugins-repo
+        env:
+          VITO_PATH: ${{ github.workspace }}/vito
+        run: node scripts/test.mjs ${{ steps.changed.outputs.slugs }}
