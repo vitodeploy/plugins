@@ -95,12 +95,16 @@ jobs:
             echo "Tooling changed or no specific plugin diff; testing all plugins."
             echo "slugs=" >> "$GITHUB_OUTPUT"
           else
-            echo "Changed plugins:"; printf '  - %s\n' $changed_plugins
-            echo "slugs=$(printf '%s ' $changed_plugins)" >> "$GITHUB_OUTPUT"
+            echo "Changed plugins:"
+            while IFS= read -r slug; do
+              [ -z "$slug" ] || printf '  - %s\n' "$slug"
+            done <<< "$changed_plugins"
+            printf 'slugs=%s\n' "$(printf '%s ' "$changed_plugins")" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Run plugin tests
         working-directory: plugins-repo
         env:
           VITO_PATH: ${{ github.workspace }}/vito
-        run: node scripts/test.mjs ${{ steps.changed.outputs.slugs }}
+          PLUGIN_SLUGS: ${{ steps.changed.outputs.slugs }}
+        run: node scripts/test.mjs
