@@ -45,7 +45,7 @@ import {
 const TESTS_DIRNAME = "tests";
 
 function parseArgs(argv) {
-  const slugs = [];
+  const slugs = (process.env.PLUGIN_SLUGS ?? "").split(/\s+/).filter(Boolean);
   let vito = process.env.VITO_PATH ?? path.resolve(pluginsDir, "..", "..", "vito");
   let filter = null;
   for (let i = 0; i < argv.length; i += 1) {
